@@ -12,12 +12,15 @@ import numpy as np
 import io
 
 # map
-import folium
-import pandas as pd
-from folium.plugins import MarkerCluster
-import geopandas as gpd
-from shapely.geometry import Point, LineString
-from shapely import wkt
+import geemap
+import ee
+import os
+import geopandas
+from geemap import geojson_to_ee, ee_to_geojson
+
+ee.Authenticate(auth_mode='gcloud')
+ee.Initialize(project='digital-yeti-417904')
+print('Earth Engine Initialized')
 
 server = Flask(__name__)
 
@@ -38,99 +41,26 @@ index_page = html.Div([
 
 # map creation
 def map_create():
-    crs = 4386
-    basin_data = pd.read_csv('basin_data.csv')
+    brazil_shapefile = geemap.shp_to_ee('Brazil.shp')
 
-    basin_data['geometry'] = basin_data['geometry'].apply(wkt.loads) # turn text into objects
-    geodata = gpd.GeoDataFrame(basin_data, crs = crs)
+    Map = geemap.Map()
 
-    plot_options = {
-      'station':{'color': 'blue', 'size': 5},
-      'pourpoint': {'color': 'red', 'size': 5},
-      'nmwdi': {'color': 'green', 'size': 5}}
+    landcover = ee.Image('MODIS/006/MCD12Q1/2004_01_01').select('LC_Type1')
 
-    geomap = folium.Map(location = [37.7749, -106.4194],
-                    zoom_start = 9.2,
-                    tiles = 'cartodbpositron',
-                    control_scale = True)
-    
-    # tile layers -> map appearance
-    folium.TileLayer('openstreetmap', attr="a").add_to(geomap)
-    folium.TileLayer('stamenwatercolor', attr="b").add_to(geomap)
-    folium.TileLayer('stamenterrain', attr="c").add_to(geomap)
-
-    ### feature groups -> objects on top of the map ###
-    basin_layer = folium.FeatureGroup(name = 'Basin Boundary', show=False)
-    mainstem_layer = folium.FeatureGroup(name = 'Mainstem River', show=False)
-    tributary_layer = folium.FeatureGroup(name='Tributary Rivers', show=False)
-    # points on the map
-    usgs_layer = folium.FeatureGroup(name = 'USGS Gauges', show=False)
-    pourpoint_layer = folium.FeatureGroup(name= 'HUC12 Pour Points', show=False)
-    nmwdi_layer = folium.FeatureGroup(name='NM Water Data Initiative Gauge', show=False)
-
-    # add points -> todo: this needs to be taylormade
-    plot_types = ['station', 'nmwdi', 'pourpoint'] # only points have these types
-    plot_layers = [usgs_layer, nmwdi_layer, pourpoint_layer]
-    
-    for i, feature_type in enumerate(plot_types):
-        map_layer = plot_layers[i]
-    
-        for _, point in geodata.loc[geodata['type'] == feature_type].iterrows():    
-            coords = [point.geometry.y, point.geometry.x]
-            
-            # Add the popup box with description -> note: we can actually use this to convey useful
-            # information such as risk percentage or other data
-            textbox = folium.Popup(point.description,
-                                  min_width= 300,
-                                  max_width= 300)
-    
-            # Add the marker at the coordinates with color-coordination
-            folium.CircleMarker(coords,
-                                popup= textbox,
-                                # whatever, the rest is style -> can be used for visual information too
-                                # e.g. risk level, severity, protected area/not protected area, etc.
-                                fill_color = plot_options[feature_type]['color'],
-                                fill = True,
-                                fill_opacity = 0.85,
-                                radius= plot_options[feature_type]['size'],
-                                color = plot_options[feature_type]['color']).add_to(map_layer)
-    # Plot basin border
-    for i,r in geodata.loc[geodata['type'] == 'basin'].iterrows():
-        # Convert the Polygon or LineString to geoJSON format
-        geo_json = gpd.GeoSeries(r['geometry']).simplify(tolerance = 0.000001).to_json()
-        geo_json = folium.GeoJson(data= geo_json,
-                                  style_function=lambda x: {'fillcolor': 'none',
-                                                            'weight': 2, 
-                                                            'color': 'black',
-                                                            'opacity': 1,
-                                                            'fill_opacity': 0.5,
-                                                            'fill': True})
-        # Add popup with line description
-        folium.Popup(r.description,
-                    min_width = 30,
-                    max_width= 30).add_to(geo_json)
-        
-        # Add the feature to the appropriate layer
-        geo_json.add_to(basin_layer)
-
-    # Add the layers to the map
-    basin_layer.add_to(geomap)
-    mainstem_layer.add_to(geomap)
-    tributary_layer.add_to(geomap)
-    usgs_layer.add_to(geomap)
-    pourpoint_layer.add_to(geomap)
-    nmwdi_layer.add_to(geomap)
+    igbpLandCoverVis = {'min': 1.0, 'max': 17.0, 'palette': ['05450a', '086a10', '54a708', '78d203', '009900', 'c6b044', 'dcd159', 'dade48', 'fbff13', 'b6ff05', '27ff87', 'c24f44', 'a5a5a5', 'ff6d4c', '69fff8', 'f9ffa4', '1c0dff']}
+    brazil_lc = landcover.clip(brazil_shapefile)
+    Map.setCenter(-55, -10, 4)
+    Map.addLayer(brazil_lc, igbpLandCoverVis, 'MODIS Land Cover')
 
     # Save it as html
-    folium.LayerControl().add_to(geomap)
-    geomap.save('map.html')
+    Map.save('map.html')
 
 map_create()
 
 page_1_layout = html.Div([
   html.H1('Page 1'),
   html.Div([
-      html.Iframe(srcDoc=open('map.html', 'r').read(), width='100%', height='600')
+      html.Iframe(src='/map.html', width='100%', height='600')
   ]),
   html.Button('Go back to home', id='back'),
 ])
