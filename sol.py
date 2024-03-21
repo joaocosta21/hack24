@@ -7,75 +7,14 @@ import geopandas as gpd
 
 
 ee.Authenticate(auth_mode='gcloud')
-ee.Initialize(project='start-hack-agoncalve')
+ee.Initialize(project='digital-yeti-417904')
 print('Earth Engine Initialized')
-
-# class Map(geemap.Map):
-#     def __init__(self, **kwargs):
-#         super().__init__(**kwargs)
-#         self.add_ee_data()
-
-#     def add_ee_data(self):
-#         years = ['2001', '2004', '2006', '2008', '2011', '2013', '2016', '2019']
-#         def getNLCD(year):
-#             dataset = ee.ImageCollection('USGS/NLCD_RELEASES/2019_REL/NLCD')
-#             nlcd = dataset.filter(ee.Filter.eq('system:index', year)).first()
-#             landcover = nlcd.select('landcover')
-#             return landcover
-
-#         collection = ee.ImageCollection(ee.List(years).map(lambda year: getNLCD(year)))
-#         labels = [f'NLCD {year}' for year in years]
-#         self.ts_inspector(
-#             left_ts=collection,
-#             right_ts=collection,
-#             left_names=labels,
-#             right_names=labels,
-#         )
-#         self.add_legend(
-#             title='NLCD Land Cover Type',
-#             builtin_legend='NLCD',
-#             height="460px",
-#             add_header=False
-#         )
-
-
-protected_areas = "/offline_data/data_protected_areas/shp/"
-shp_files = [
-    os.getcwd() + "/offline_data/data_protected_areas/shp/WDPA_WDOECM_Mar2024_Public_BRA_shp_0/WDPA_WDOECM_Mar2024_Public_BRA_shp-polygons.shp",
-    os.getcwd() + "/offline_data/data_protected_areas/shp/WDPA_WDOECM_Mar2024_Public_BRA_shp_1/WDPA_WDOECM_Mar2024_Public_BRA_shp-polygons.shp",
-    os.getcwd() + "/offline_data/data_protected_areas/shp/WDPA_WDOECM_Mar2024_Public_BRA_shp_2/WDPA_WDOECM_Mar2024_Public_BRA_shp-polygons.shp",
-]
-
-combined_gdf = gpd.GeoDataFrame()
-for shp_file in shp_files:
-    # Read the shapefile
-    gdf = gpd.read_file(shp_file)
-    
-    # Append the GeoDataFrame to the combined GeoDataFrame
-    combined_gdf = pd.concat([combined_gdf, gdf], ignore_index=True)
-
-
-combined_gdf = combined_gdf[combined_gdf['MARINE'] != '2']
-simplified_geometry = combined_gdf.simplify(tolerance=0.01, preserve_topology=True)
-combined_gdf['geometry'] = simplified_geometry
-
-protected_areas = geemap.geopandas_to_ee(combined_gdf)
-
-
-# for shp_file in shp_files:
-#     # Read the shapefile
-#     gdf = gpd.read_file(shp_file)
-#     # Append the GeoDataFrame to the combined GeoDataFrame
-#     combined_gdf = pd.concat([combined_gdf, gdf], ignore_index=True)
-
-# # Remove all marine protected areas
-# combined_gdf = combined_gdf[combined_gdf['MARINE'] != '2']
-
 
 class Map(geemap.Map):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.add_ee_data()
+        self.add_inspector()
 
     def add_ee_data(self):
         region_of_interest = ee.FeatureCollection('FAO/GAUL/2015/level0')\
@@ -103,17 +42,28 @@ class Map(geemap.Map):
         self.addLayer(pop_collection_brazil, vis, 'Population')
 
 
-
-
         igbpLandCoverVis = {'min': 1.0, 'max': 17.0, 'palette': ['05450a', '086a10', '54a708', '78d203', '009900', 'c6b044', 'dcd159', 'dade48', 'fbff13', 'b6ff05', '27ff87', 'c24f44', 'a5a5a5', 'ff6d4c', '69fff8', 'f9ffa4', '1c0dff']}
         brazil_lc = landcover.clip(brazil_shape)
         self.setCenter(-55, -10, 4)
-        # self.addLayer(brazil_lc, igbpLandCoverVis, 'MODIS Land Cover')
+        self.addLayer(brazil_lc, igbpLandCoverVis, 'MODIS Land Cover')
+
+        self.addLayerControl()
+    
+def Floating(children=None, style=None):
+    return solara.Div(style={**style, "position": "absolute", "z-index": "9999"}, children=children)
+
+def remove_layer_population():
+    print('Removing Population Layer')
 
 @solara.component
-def Page():
+def RemovePopulationLayerButton():
+    return solara.Button("Remove Population Layer", onclick=remove_layer_population)
+
+@solara.component
+def MyMap():
+    # Use a state to keep track of the current map
+    map = Map.element(zoom=4, height="800px")
+
     with solara.Column(style={"min-width": "500px"}):
-        Map.element(
-            zoom=4,
-            height="800px",
-        )
+        # Display the current map
+        map
