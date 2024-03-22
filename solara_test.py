@@ -1,5 +1,4 @@
 import solara
-from solara.website.pages.examples.utilities import calculator
 from sol import MyMap 
 from home import Home
 
