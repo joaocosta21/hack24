@@ -1,12 +1,20 @@
 import solara
-from sol import MyMap 
+import ee
+
+from myMap import MyMap 
+from fwiMap import FWIMap
+from fireMap import FireMap
 from home import Home
 
+ee.Authenticate(auth_mode='gcloud')
+ee.Initialize(project='digital-yeti-417904')
+print('Earth Engine Initialized')
+
 routes = [
-    solara.Route(path="/", component=Home, label="HomeLabel"),
-    # the calculator module should have a Page component
-    solara.Route(path="calculator", module=calculator, label="CalculatorLabel"),
+    solara.Route(path="/", component=Home, label="Home"),
     solara.Route(path="myMap", component=MyMap, label="MyMapLabel"),
+    solara.Route(path="fwiMap", component=FWIMap, label="FWI Map"),
+    solara.Route(path="fireMap", component=FireMap, label="Fire Map")
 ]
 
 @solara.component
